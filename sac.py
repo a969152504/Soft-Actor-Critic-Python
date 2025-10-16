@@ -13,16 +13,22 @@ from torch.distributions import Normal
 import os
 
 
+def create_mlp(input_size, output_size, hidden_sizes = [256]):
+    mlp = torch.nn.Sequential(torch.nn.Linear(input_size, hidden_sizes[0]))
+    
+    for i in range(len(hidden_sizes)-1):
+        mlp.append(torch.nn.ReLU())
+        mlp.append(torch.nn.Linear(hidden_sizes[i], hidden_sizes[i+1]))
+    
+    mlp.append(torch.nn.ReLU())
+    mlp.append(torch.nn.Linear(hidden_sizes[-1], output_size))
+    
+    return mlp
+
 class Critic(torch.nn.Module):
-    def __init__(self, state_size, action_size, hidden_size = 256):
+    def __init__(self, state_size, action_size, hidden_sizes = [256]):
         super().__init__()
-        self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(state_size + action_size, hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_size, hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_size, 1)
-            )
+        self.mlp = create_mlp(state_size + action_size, 1, hidden_sizes)
         
     def forward(self, s, a):
         if(len(s.shape) > 2):
@@ -35,23 +41,11 @@ class Critic(torch.nn.Module):
 
 
 class Actor(torch.nn.Module):
-    def __init__(self, state_size, action_size, hidden_size = 256, action_scale = 1.0, action_shift = 0.0):
+    def __init__(self, state_size, action_size, hidden_sizes = [256], action_scale = 1.0, action_shift = 0.0):
         super().__init__()
-        self.mean_mlp = torch.nn.Sequential(
-            torch.nn.Linear(state_size, hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_size, hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_size, action_size)
-            )
+        self.mean_mlp = create_mlp(state_size, action_size, hidden_sizes)
         
-        self.log_std_mlp = torch.nn.Sequential(
-            torch.nn.Linear(state_size, hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_size, hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(hidden_size, action_size)
-            )
+        self.log_std_mlp = create_mlp(state_size, action_size, hidden_sizes)
         
         self.tanh = torch.nn.Tanh()
         
@@ -103,7 +97,7 @@ class Actor(torch.nn.Module):
         
 
 class SAC():
-    def __init__(self, lr, batch_size, state_size, action_size, device, hidden_size = 256, action_scale = 1.0, action_shift = 0.0):
+    def __init__(self, lr, batch_size, state_size, action_size, device, hidden_sizes = [256], action_scale = 1.0, action_shift = 0.0):
         self.device = device
         
         self.discount = 0.99
@@ -115,10 +109,10 @@ class SAC():
         self.action_size = action_size
         self.target_entropy = -self.action_size
         
-        self.actor = Actor(state_size, action_size, hidden_size, action_scale, action_shift).to(device)
+        self.actor = Actor(state_size, action_size, hidden_sizes, action_scale, action_shift).to(device)
         
-        self.critic1 = Critic(state_size, action_size, hidden_size).to(device)
-        self.critic2 = Critic(state_size, action_size, hidden_size).to(device)
+        self.critic1 = Critic(state_size, action_size, hidden_sizes).to(device)
+        self.critic2 = Critic(state_size, action_size, hidden_sizes).to(device)
         
         self.critic1_target = copy.deepcopy(self.critic1).to(device)
         self.critic2_target = copy.deepcopy(self.critic2).to(device)
