@@ -5,6 +5,7 @@ Created on Fri Oct 10 10:26:53 2025
 @author: Andy_Wong
 """
 
+import os
 from sac import SAC
 import random
 from random import randrange
@@ -13,23 +14,27 @@ import numpy as np
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CyclicLR
 import gymnasium as gym
+from torch.utils.tensorboard import SummaryWriter
 
 
 #device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu')
 
-eval_mode = False
-checkpoint_path = "E:/Test_scripts/checkpoints/sac_checkpoint_Walker2d-v5_v1.pth"
-
 env_name = 'Walker2d-v5'
+suffix = 'v1'
+
+eval_mode = False
+ckpt_dir = './checkpoints/{}_{}'.format(env_name, suffix)
+ckpt_path = ckpt_dir + '/{}_{}.pth'.format(env_name, suffix)
+log_path = ckpt_dir + '/runs'
+os.makedirs(ckpt_dir, exist_ok=True)
 
 def evaluation(Agent, loops, render_mode = False):
     print('Evaluation:')    
     if render_mode:
         eval_env = gym.make(env_name, render_mode="human")
     else:
-        #eval_env = gym.make('InvertedPendulum-v5', reset_noise_scale=0.1)
-        eval_env = gym.make(env_name)#, render_mode="human")
+        eval_env = gym.make(env_name)
     
     eval_total_reward = 0
     for loop in range(loops):
@@ -42,13 +47,6 @@ def evaluation(Agent, loops, render_mode = False):
             eval_state = torch.tensor(eval_state_cpu, dtype=torch.float32).to(device)
             eval_state = torch.unsqueeze(eval_state, 0)
             
-            '''
-            print('Position of the cart along the linear surface: ', eval_state_cpu[0], 
-                  '\nVertical angle of the pole on the cart: ', eval_state_cpu[1], 
-                  '\nLinear velocity of the cart: ', eval_state_cpu[2], 
-                  '\nAngular velocity of the pole on the cart: ', eval_state_cpu[3])
-            '''
-            
             with torch.no_grad():
                 eval_action = Agent.actor.evaluation(eval_state)
                 eval_action = torch.squeeze(eval_action)
@@ -59,14 +57,6 @@ def evaluation(Agent, loops, render_mode = False):
             eval_state2_cpu, eval_reward, eval_done, eval_truncated, eval_info = eval_env.step(eval_action_cpu)
             eval_loop_reward += eval_reward
             
-            '''
-            print('After action')
-            print('Position of the cart along the linear surface: ', eval_state_cpu[0], 
-                  '\nVertical angle of the pole on the cart: ', eval_state_cpu[1], 
-                  '\nLinear velocity of the cart: ', eval_state_cpu[2], 
-                  '\nAngular velocity of the pole on the cart: ', eval_state_cpu[3])
-            print('This action reward: ', eval_reward)
-            '''
             if eval_done or eval_truncated:
                 eval_total_reward += eval_loop_reward
                 print('Total reward:', eval_loop_reward, '\n',
@@ -74,34 +64,31 @@ def evaluation(Agent, loops, render_mode = False):
                 break
             
             eval_state_cpu = eval_state2_cpu
-    eval_total_reward = eval_total_reward / loops
+    avg_eval_reward = eval_total_reward / loops
     print('Average reward:', eval_total_reward)
     
     eval_env.close()
     
-    return eval_total_reward
+    return avg_eval_reward
 
 
-if __name__ == "__main__":
-    suffix = 'v1'
-    
-    #Env = gym.make('InvertedPendulum-v5', reset_noise_scale=0.1)
+if __name__ == "__main__":    
     Env = gym.make(env_name)#, render_mode="human")
     
     action_scale = 1.0
     action_shift = 0.0
     
-    Agent = SAC(lr=1e-4, 
+    Agent = SAC(lr=3e-4, 
                 batch_size=256, 
                 state_size=Env.observation_space.shape[0], 
                 action_size=Env.action_space.shape[0],
                 device=device,
-                hidden_sizes=[256, 512, 1024, 1024, 512, 256],
+                hidden_sizes=[256, 512, 256],
                 action_scale=action_scale,
                 action_shift=action_shift) # Action = action_scale * (action + action_shift), action:(-1, 1)
     
     if eval_mode:
-        Agent.load_checkpoint(checkpoint_path)
+        Agent.load_checkpoint(ckpt_path)
         
         evaluation(Agent, 30, True)
         
@@ -109,6 +96,8 @@ if __name__ == "__main__":
         Agent.critic1.train()
         Agent.critic2.train()
         Agent.actor.train()
+        
+        writer = SummaryWriter(log_path=log_path)
         
         num_epochs = 1000
         num_updates = 1
@@ -191,18 +180,29 @@ if __name__ == "__main__":
                       'avg_Policy_loss:', avg_Policy_loss, '\n'
                       'avg_Temp_loss:', avg_Temp_loss)
                         
+                # Log training metrics to TensorBoard
+                writer.add_scalar('Train/avg_Q1_loss', avg_Q1_loss, epoch)
+                writer.add_scalar('Train/avg_Q2_loss', avg_Q2_loss, epoch)
+                writer.add_scalar('Train/avg_Policy_loss', avg_Policy_loss, epoch)
+                writer.add_scalar('Train/avg_Temp_loss', avg_Temp_loss, epoch)
+                
             # Evaluation
             if (epoch+1)%10 == 0 and len(Agent.replayBuffer) >= Agent.batch_size:
                 Agent.actor.train()
                 
-                eval_total_reward = evaluation(Agent, 10)
+                avg_eval_reward = evaluation(Agent, 10)
                 
                 Agent.actor.train()
                 
-                if eval_total_reward > best_reward:
-                    best_reward = eval_total_reward
+                if avg_eval_reward > best_reward:
+                    best_reward = avg_eval_reward
                     print('Best reward:', best_reward)
                     print('Saving model')
-                    Agent.save_checkpoint(env_name, suffix)
+                    Agent.save_checkpoint(ckpt_path)
                 
+                # Log training metrics to TensorBoard
+                writer.add_scalar('Eval/avg_eval_reward', avg_eval_reward, epoch)
         Env.close()
+        
+        # Close TensorBoard writer
+        writer.close()

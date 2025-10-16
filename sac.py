@@ -262,11 +262,7 @@ class SAC():
     
         return [states, actions, rewards, next_states, dones]
     
-    def save_checkpoint(self, env_name, suffix="", ckpt_path=None):
-        if not os.path.exists('checkpoints/'):
-            os.makedirs('checkpoints/')
-        if ckpt_path is None:
-            ckpt_path = "checkpoints/sac_checkpoint_{}_{}.pth".format(env_name, suffix)
+    def save_checkpoint(self, ckpt_path):
         print('Saving models to {}'.format(ckpt_path))
         torch.save({'actor_state_dict': self.actor.state_dict(),
                     'critic1_state_dict': self.critic1.state_dict(),
