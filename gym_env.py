@@ -65,7 +65,7 @@ def evaluation(Agent, loops, render_mode = False):
             
             eval_state_cpu = eval_state2_cpu
     avg_eval_reward = eval_total_reward / loops
-    print('Average reward:', eval_total_reward)
+    print('Average reward:', avg_eval_reward)
     
     eval_env.close()
     
