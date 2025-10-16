@@ -78,12 +78,14 @@ if __name__ == "__main__":
     action_scale = 1.0
     action_shift = 0.0
     
-    Agent = SAC(lr=3e-4, 
+    Agent = SAC(lra=3e-4,
+                lrc=3e-4,
                 batch_size=256, 
                 state_size=Env.observation_space.shape[0], 
                 action_size=Env.action_space.shape[0],
                 device=device,
-                hidden_sizes=[256, 512, 256],
+                hidden_sizes_actor=[256],
+                hidden_sizes_critic=[256],
                 action_scale=action_scale,
                 action_shift=action_shift) # Action = action_scale * (action + action_shift), action:(-1, 1)
     
@@ -100,7 +102,7 @@ if __name__ == "__main__":
         writer = SummaryWriter(log_dir=log_path)
         
         num_epochs = 1000
-        num_updates = 1
+        num_updates = 10
         random_action = 0.99
         best_reward = 0.0
         for epoch in range(num_epochs):
@@ -185,6 +187,8 @@ if __name__ == "__main__":
                 writer.add_scalar('Train/avg_Q2_loss', avg_Q2_loss, epoch)
                 writer.add_scalar('Train/avg_Policy_loss', avg_Policy_loss, epoch)
                 writer.add_scalar('Train/avg_Temp_loss', avg_Temp_loss, epoch)
+                writer.add_scalar('Train/total_reward', total_reward, epoch)
+                writer.add_scalar('Train/total_steps', total_steps, epoch)
                 
             # Evaluation
             if (epoch+1)%10 == 0 and len(Agent.replayBuffer) >= Agent.batch_size:
