@@ -97,7 +97,7 @@ if __name__ == "__main__":
         Agent.critic2.train()
         Agent.actor.train()
         
-        writer = SummaryWriter(log_path=log_path)
+        writer = SummaryWriter(log_dir=log_path)
         
         num_epochs = 1000
         num_updates = 1
