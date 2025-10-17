@@ -21,9 +21,9 @@ from torch.utils.tensorboard import SummaryWriter
 device = torch.device('cpu')
 
 env_name = 'Walker2d-v5'
-suffix = 'v2'
+suffix = 'v1'
 
-eval_mode = True
+eval_mode = False
 ckpt_dir = './checkpoints/{}_{}'.format(env_name, suffix)
 ckpt_path = ckpt_dir + '/{}_{}.pth'.format(env_name, suffix)
 log_path = ckpt_dir + '/runs'
