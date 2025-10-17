@@ -97,11 +97,16 @@ class Actor(torch.nn.Module):
         
 
 class SAC():
-    def __init__(self, lr, batch_size, state_size, action_size, device, hidden_sizes = [256], action_scale = 1.0, action_shift = 0.0):
+    def __init__(self, lra, lrc, 
+                 batch_size, state_size, action_size,
+                 device, 
+                 target_smoothing_coefficient = 0.005,
+                 hidden_sizes_actor = [256], hidden_sizes_critic = [256], 
+                 action_scale = 1.0, action_shift = 0.0):
         self.device = device
         
         self.discount = 0.99
-        self.target_smoothing_coefficient = 0.005
+        self.target_smoothing_coefficient = target_smoothing_coefficient
         self.entropy_temperature = 0.2
         self.log_alpha = torch.tensor(np.log(self.entropy_temperature), requires_grad=True, device=device)
         
@@ -109,10 +114,10 @@ class SAC():
         self.action_size = action_size
         self.target_entropy = -self.action_size
         
-        self.actor = Actor(state_size, action_size, hidden_sizes, action_scale, action_shift).to(device)
+        self.actor = Actor(state_size, action_size, hidden_sizes_actor, action_scale, action_shift).to(device)
         
-        self.critic1 = Critic(state_size, action_size, hidden_sizes).to(device)
-        self.critic2 = Critic(state_size, action_size, hidden_sizes).to(device)
+        self.critic1 = Critic(state_size, action_size, hidden_sizes_critic).to(device)
+        self.critic2 = Critic(state_size, action_size, hidden_sizes_critic).to(device)
         
         self.critic1_target = copy.deepcopy(self.critic1).to(device)
         self.critic2_target = copy.deepcopy(self.critic2).to(device)
@@ -134,13 +139,12 @@ class SAC():
         self.replayBuffer = []
         self.bufferD_maxsize = 1e6
         
-        self.lr = lr
         self.batch_size = batch_size
         
-        self.critic1_optimizer = torch.optim.Adam(self.critic1.parameters(), lr=self.lr)
-        self.critic2_optimizer = torch.optim.Adam(self.critic2.parameters(), lr=self.lr)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
-        self.temperature_optimizer = torch.optim.Adam([self.log_alpha], lr=self.lr)
+        self.critic1_optimizer = torch.optim.Adam(self.critic1.parameters(), lr=lrc)
+        self.critic2_optimizer = torch.optim.Adam(self.critic2.parameters(), lr=lrc)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lra)
+        self.temperature_optimizer = torch.optim.Adam([self.log_alpha], lr=lrc)
     
     def QLoss(self, Q_value, r, d, min_Qtarget_value, log_prob):
         y = r + self.discount * (1 - d) * (min_Qtarget_value.detach() - self.entropy_temperature * log_prob.detach())

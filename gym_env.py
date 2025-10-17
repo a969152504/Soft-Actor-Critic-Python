@@ -21,9 +21,9 @@ from torch.utils.tensorboard import SummaryWriter
 device = torch.device('cpu')
 
 env_name = 'Walker2d-v5'
-suffix = 'v1'
+suffix = 'v2'
 
-eval_mode = False
+eval_mode = True
 ckpt_dir = './checkpoints/{}_{}'.format(env_name, suffix)
 ckpt_path = ckpt_dir + '/{}_{}.pth'.format(env_name, suffix)
 log_path = ckpt_dir + '/runs'
@@ -78,12 +78,13 @@ if __name__ == "__main__":
     action_scale = 1.0
     action_shift = 0.0
     
-    Agent = SAC(lra=3e-4,
-                lrc=3e-4,
+    Agent = SAC(lra=1e-4,
+                lrc=1e-4,
                 batch_size=256, 
                 state_size=Env.observation_space.shape[0], 
                 action_size=Env.action_space.shape[0],
                 device=device,
+                target_smoothing_coefficient = 0.001,
                 hidden_sizes_actor=[256],
                 hidden_sizes_critic=[256],
                 action_scale=action_scale,
@@ -101,8 +102,8 @@ if __name__ == "__main__":
         
         writer = SummaryWriter(log_dir=log_path)
         
-        num_epochs = 1000
-        num_updates = 10
+        num_epochs = 100000
+        num_updates = 1
         random_action = 0.99
         best_reward = 0.0
         for epoch in range(num_epochs):
